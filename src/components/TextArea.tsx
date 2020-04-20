@@ -28,7 +28,15 @@ export interface TextAreaState {
   mention: MentionState;
 }
 
-export interface TextAreaProps {
+export type TextAreaProps<
+  TTextAreaComponent extends React.DetailedHTMLFactory<
+    React.DetailedHTMLProps<
+      React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+      HTMLTextAreaElement
+    >,
+    any
+  > = React.ReactHTML["textarea"]
+> = {
   classes?: ClassValue;
   suggestionsDropdownClasses?: ClassValue;
   value: string;
@@ -41,12 +49,8 @@ export interface TextAreaProps {
     text: string,
     triggeredBy: string
   ) => Promise<Suggestion[]>;
-  textAreaProps?: Partial<
-    React.DetailedHTMLProps<
-      React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-      HTMLTextAreaElement
-    >
-  >;
+  textAreaComponent?: TTextAreaComponent
+  textAreaProps?: Partial<React.ComponentProps<TTextAreaComponent>>
 }
 
 export class TextArea extends React.Component<TextAreaProps, TextAreaState> {
@@ -315,20 +319,22 @@ export class TextArea extends React.Component<TextAreaProps, TextAreaState> {
     const { mention } = this.state;
     return (
       <div className="mde-textarea-wrapper">
-        <textarea
-          className={classNames("mde-text", classes)}
-          style={{ height }}
-          ref={this.handleTextAreaRef}
-          onChange={this.handleOnChange}
-          readOnly={readOnly}
-          value={value}
-          data-testid="text-area"
-          onBlur={suggestionsEnabled ? this.handleBlur : undefined}
-          onKeyDown={suggestionsEnabled ? this.handleKeyDown : undefined}
-          onKeyUp={suggestionsEnabled ? this.handleKeyUp : undefined}
-          onKeyPress={suggestionsEnabled ? this.handleKeyPress : undefined}
-          {...textAreaProps}
-        />
+        {React.createElement(this.props.textAreaComponent ? this.props.textAreaComponent : "textarea", {
+          className: classNames("mde-text", classes),
+          style: { height },
+          ref: this.handleTextAreaRef,
+          onChange: this.handleOnChange,
+          readOnly: readOnly,
+          value: value,
+          // @ts-ignore
+          // see https://github.com/microsoft/TypeScript/issues/28960
+          "data-testid": "text-area",
+          onBlur: suggestionsEnabled ? this.handleBlur : undefined,
+          onKeyDown: suggestionsEnabled ? this.handleKeyDown : undefined,
+          onKeyUp: suggestionsEnabled ? this.handleKeyUp : undefined,
+          onKeyPress: suggestionsEnabled ? this.handleKeyPress : undefined,
+          ...textAreaProps,
+        })}
         {mention.status === "active" && mention.suggestions.length && (
           <SuggestionsDropdown
             classes={suggestionsDropdownClasses}

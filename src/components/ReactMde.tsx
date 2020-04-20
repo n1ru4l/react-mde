@@ -20,7 +20,15 @@ import { SvgIcon } from "../icons";
 import { classNames, ClassValue } from "../util/ClassNames";
 import { ChildProps, TextAreaChildProps } from "../child-props";
 
-export interface ReactMdeProps {
+export type ReactMdeProps<
+  TTextAreaComponent extends React.DetailedHTMLFactory<
+  React.DetailedHTMLProps<
+    React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+    HTMLTextAreaElement
+  >,
+  any
+  > = React.ReactHTML["textarea"]
+> = {
   value: string;
   onChange: (value: string) => void;
   selectedTab: "write" | "preview";
@@ -47,6 +55,7 @@ export interface ReactMdeProps {
   /**
    * "textAreaProps" is OBSOLETE. It will soon be removed in favor of the "defaultChildProps" prop
    */
+  textAreaComponent?: TTextAreaComponent;
   textAreaProps?: TextAreaChildProps;
   l18n?: L18n;
 }
@@ -209,6 +218,7 @@ export class ReactMde extends React.Component<ReactMdeProps, ReactMdeState> {
             editorRef={this.setTextAreaRef}
             onChange={this.handleTextChange}
             readOnly={readOnly}
+            textAreaComponent={this.props.textAreaComponent}
             textAreaProps={(childProps && childProps.textArea) || textAreaProps}
             height={this.state.editorHeight}
             value={value}
