@@ -11,6 +11,42 @@ export interface AppState {
 const OPEN_MARK = '<mark>';
 const CLOSE_MARK = '</mark>';
 
+/**
+ * @source https://github.com/jwarby/merge-ranges
+ */
+const mergeRanges = (ranges: [number, number][]):[number, number][] => {
+    if (!(ranges && ranges.length)) {
+      return [];
+    }
+  
+    // Stack of final ranges
+    const stack = [];
+  
+    // Sort according to start value
+    ranges.sort(function(a, b) {
+      return a[0] - b[0];
+    });
+  
+    // Add first range to stack
+    stack.push(ranges[0]);
+  
+    ranges.slice(1).forEach(function(range, i) {
+      var top = stack[stack.length - 1];
+  
+      if (top[1] < range[0]) {
+  
+        // No overlap, push range onto stack
+        stack.push(range);
+      } else if (top[1] < range[1]) {
+  
+        // Update previous range
+        top[1] = range[1];
+      }
+    });
+  
+    return stack;
+}
+
 const CustomTextArea: React.FC<
   React.DetailedHTMLProps<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -23,89 +59,55 @@ const CustomTextArea: React.FC<
     setState(event.target.value);
     onChange(event)
   }, []);
+
+
   const handleScroll = React.useCallback((event: React.UIEvent<HTMLTextAreaElement>) => {
     // @ts-ignore
     const scrollTop = event.target.scrollTop;
     if (backdropRef.current) backdropRef.current.scrollTop = scrollTop
-    onScroll(event)
+    onScroll && onScroll(event)
   }, [onScroll])
 
-  const handleRegexHighlight = (input, payload) => {
-    return input.replace(payload, OPEN_MARK + '$&' + CLOSE_MARK);
-  }
-
-  const handleArrayHighlight = (input: string, payload: any) => {
+  const handleArrayHighlight = (input: string, sections: [number, number][]) => {
     let offset = 0;
-    payload.forEach((element) => {
+    
+    let elements: React.ReactNode[] = [];
 
-      // insert open tag
-      var open = element[0] + offset;
-
-      if(element[2]) {
-        const OPEN_MARK_WITH_CLASS = '<mark style="color:inherit;padding:0;" class="' + element[2] + '">';
-        input = input.slice(0, open) + OPEN_MARK_WITH_CLASS + input.slice(open);
-        offset += OPEN_MARK_WITH_CLASS.length;
-      } else {
-        input = input.slice(0, open) + OPEN_MARK + input.slice(open);
-        offset += OPEN_MARK.length;
+    sections.forEach(([start, end]) => {
+      const part = input.slice(offset, start)
+      if (part) {
+        elements.push(part)
       }
+      elements.push(React.createElement("span", { key: `${start}_${end}`, style: { color:"inherit", padding:0, backgroundColor: "yellow" }}, input.slice(start, end)))
+      offset = end;
+    })
 
-      // insert close tag
-      var close = element[1] + offset;
+    if (offset < input.length - 1) {
+      elements.push(input.slice(offset, input.length - 1))
+    }
 
-      input = input.slice(0, close) + CLOSE_MARK + input.slice(close);
-      offset += CLOSE_MARK.length;
-
-    });
-    return input;
+    return elements;
   }
 
   const highlights = React.useMemo(() => {
-    let highlightMarks = state;
-    const payload = highlight(highlightMarks);
-
-    // escape HTML
-    highlightMarks = highlightMarks.replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    if (payload) {
-      switch (payload.constructor.name) {
-        case 'Array':
-          highlightMarks = handleArrayHighlight(highlightMarks, payload);
-          break;
-        case 'RegExp':
-          highlightMarks = handleRegexHighlight(highlightMarks, payload);
-          break;
-        default:
-          throw 'Unrecognized payload type!';
-      }
-    }
-
-    // this keeps scrolling aligned when input ends with a newline
-    highlightMarks = highlightMarks.replace(new RegExp('\\n(' + CLOSE_MARK + ')?$'), '\n\n$1');
-
-    // highlightMarks = highlightMarks.replace(new RegExp(HighlightedTextarea.OPEN_MARK, 'g'), '<mark>');
-    // highlightMarks = highlightMarks.replace(new RegExp(HighlightedTextarea.CLOSE_MARK, 'g'), '</mark>');
-
-    return highlightMarks;
+    return handleArrayHighlight(state, mergeRanges(highlight(state)));
   }, [props.value])
-
   return (
     <>
-      <div ref={backdropRef} style={{ 
-        color: "transparent",
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        padding: "10px",
-         borderColor: "transparent", whiteSpace:"pre-wrap", wordWrap:"break-word", overflow:"hidden"
-         }} 
-         dangerouslySetInnerHTML={{__html: highlights }}
-      />
+      <div
+        ref={backdropRef} 
+        style={{ 
+          color: "transparent",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none",
+          padding: "10px",
+          borderColor: "transparent", whiteSpace:"pre-wrap", wordWrap:"break-word", overflow:"hidden"
+        }}
+      >{highlights}</div>
       <textarea
         onScroll={handleScroll}
         onChange={handleInputChange}
@@ -120,6 +122,27 @@ const CustomTextArea: React.FC<
     </>
   )
 })
+
+const findIndicies = (source: string, needle: string)  => {
+  if (!source) {
+    return [];
+  }
+  // if find is empty string return all indexes.
+  if (!needle) {
+    // or shorter arrow function:
+    // return source.split('').map((_,i) => i);
+    return source.split('').map(function(_, i) { return i; });
+  }
+  var result = [];
+  for (let i = 0; i < source.length; ++i) {
+    // If you want to search case insensitive use 
+    // if (source.substring(i, i + find.length).toLowerCase() == find) {
+    if (source.substring(i, i + needle.length) == needle) {
+      result.push(i);
+    }
+  }
+  return result;
+}
 
 export class App extends React.Component<{}, AppState> {
   converter: Showdown.Converter;
@@ -188,7 +211,10 @@ export class App extends React.Component<{}, AppState> {
           // @ts-ignore
           textAreaComponent={CustomTextArea}
           textAreaProps={{
-            highlight: () => [[0, 20]]
+            highlight: (input) => {
+              const indicies = findIndicies(input, "Hello")
+              return indicies.map(index => [index, index + "Hello".length])
+            }
           }}
           classes={{
             suggestionsDropdown: "bbbb"
